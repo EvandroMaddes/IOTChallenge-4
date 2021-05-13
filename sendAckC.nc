@@ -25,8 +25,8 @@ module sendAckC {
 
 	//interface for timer
     //other interfaces, if needed
-	interface Timer<TMilli> as Timer;
-	
+	interface Timer<TMilli> as MilliTimer;
+	interface PacketAcknowledgements as Acks;
 	//interface used to perform sensor reading (to get the value from a sensor)
 	interface Read<uint16_t> ;
   }
@@ -61,7 +61,7 @@ module sendAckC {
 	  mess->value = 0;
 	  dbg("radio_pack","Preparing the message... \n");
 	  
-	  request_ack(mess);
+	  call Acks.requestAck((message_t*)(mess));
  }        
 
   //****************** Task send response *****************//
@@ -87,7 +87,7 @@ module sendAckC {
     if(err == SUCCESS) {
     	dbg("radio", "Radio on!\n");
 	if (TOS_NODE_ID > 0){
-        call Timer.startPeriodic( 1000 );
+        call MilliTimer.startPeriodic( 1000 );
   	}
     }
     else{
@@ -111,7 +111,7 @@ module sendAckC {
     dbg("timer", " Counter is %hu.\n", counter);
 	//call TempRead.read();
 
-  	call sendReq();
+  	sendReq();
   }
   
 
@@ -126,7 +126,7 @@ module sendAckC {
 	 * 2b. Otherwise, send again the request
 	 * X. Use debug statements showing what's happening (i.e. message fields)
 	 */
-  	if (&packet == buf && error == SUCCESS) {
+  	if (&packet == buf && err == SUCCESS) {
       dbg("radio_send", "Packet sent...");
       dbg_clear("radio_send", " at time %s \n", sim_time_string());
     }
@@ -134,13 +134,13 @@ module sendAckC {
       dbgerror("radio_send", "Send done error!\n");
     }
 
-    if (wasAcked(buf) == SUCCESS){
+    if (call Acks.wasAcked(buf) == SUCCESS){
 		dbg("radio_send", "The program is done!\n");
-		SplitControl.stop();
+		call SplitControl.stop();
 
     }else{
     	dbgerror("radio_send", "No ACK received! Send a new request.\n");
-    	call sendReq()
+    	sendReq();
     }
   }
 
@@ -156,15 +156,15 @@ module sendAckC {
 	 */
 
   	if (len != sizeof(my_msg_t)) {
-  		return bufPtr;}
+  		return buf;}
     else {
       my_msg_t* mess = (my_msg_t*)payload;
 
-      if (mess->type == 1){
+      if (mess->msg_type == 1){
 
-        	call sendResp();    
+        	sendResp();    
             dbg("radio_rec", "Received packet at time %s\n", sim_time_string());
-            dbg("radio_pack"," Payload length %hhu \n", call Packet.payloadLength( bufPtr ));
+            dbg("radio_pack"," Payload length %hhu \n", call Packet.payloadLength( buf ));
             dbg("radio_pack", ">>>Pack \n");
             dbg_clear("radio_pack","\t\t Payload Received\n" );
             dbg_clear("radio_pack", "\t\t type: %hhu \n ", mess->msg_type);
@@ -174,9 +174,9 @@ module sendAckC {
       	}
 
      
-      return bufPtr;
+      return buf;
     }
-    {
+    
 
   }
   
@@ -207,5 +207,6 @@ module sendAckC {
       	dbg_clear("radio_pack", "\t\t value: %hhu \n ", mess->value);
 
   	}
+}
 }
 

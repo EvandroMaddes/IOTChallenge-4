@@ -15,9 +15,12 @@ implementation {
 /****** COMPONENTS *****/
   components MainC, sendAckC as App;
   //add the other components here
-  components new AMSenderC(AM_SEND_MSG);
-  components new AMReceiverC(AM_SEND_MSG);
+  components new AMSenderC(AM_MY_MSG);
+  components new AMReceiverC(AM_MY_MSG);
   components new TimerMilliC() as timer;
+  components ActiveMessageC;
+  components new FakeSensorC() as sensor;
+  components new CC2420PacketP() as acks; 
 
 /****** INTERFACES *****/
   //Boot interface
@@ -25,16 +28,24 @@ implementation {
 
   /****** Wire the other interfaces down here *****/
   //Send and Receive interfaces
-  //Radio Control
-  App.SplitControl -> ActiveMessageC;
   App.AMSend -> AMSenderC;
   App.Packet -> AMSenderC;
   App.Receive -> AMReceiverC;
+  
+  //Radio Control
+  App.SplitControl -> ActiveMessageC;
+ 
   //Interfaces to access package fields
+  
+  
   //Timer interface
-  App.timer ->  Timer;
+  App.MilliTimer ->  timer;
+  
   //Fake Sensor read
-  App.Read -> FakeSensorC;
-
+  App.Read -> sensor;
+  
+  //Packet acknowledgment
+  App.Acks -> acks;
+	
 }
 
