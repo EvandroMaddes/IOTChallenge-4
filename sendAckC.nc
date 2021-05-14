@@ -15,54 +15,27 @@ module sendAckC {
 
   uses {
   /****** INTERFACES *****/
-	interface Boot; 
-	
-    //interfaces for communication
-    interface SplitControl;
-	interface Packet;
-    interface AMSend;
+	interface Boot;
     interface Receive;
-
-	//interface for timer
-    //other interfaces, if needed
-	interface Timer<TMilli> as MilliTimer;
-	interface PacketAcknowledgements as Acks;
-	//interface used to perform sensor reading (to get the value from a sensor)
-	interface Read<uint16_t> ;
+    interface AMSend;
+    interface Timer<TMilli> as MilliTimer;
+    interface Packet;
+    interface SplitControl;
+    // ack
+    interface PacketAcknowledgements as Ack;
+    // used to get source addr - allows for less hardcode
+    interface AMPacket;
+	interface Read<uint16_t>;
   }
 
 } implementation {
 
+  // note: counter shows how many requests have been sent without receiving an ACK back
   uint8_t counter=0;
   uint8_t rec_id;
   message_t packet;
-
-  void sendReq();
-  void sendResp();
-  
-  
-  //***************** Send request function ********************//
-  void sendReq() {
-	/* This function is called when we want to send a request
-	 *
-	 * STEPS:
-	 * 1. Prepare the msg
-	 * 2. Set the ACK flag for the message using the PacketAcknowledgements interface
-	 *     (read the docs)
-	 * 3. Send an UNICAST message to the correct node
-	 * X. Use debug statements showing what's happening (i.e. message fields)
-	 */
-  	my_msg_t* mess = (my_msg_t*)(call Packet.getPayload(&packet, sizeof(my_msg_t)));
-	  if (mess == NULL) {
-		return;
-	  }
-	  mess->msg_type = 1;
-	  mess->msg_counter = counter;
-	  mess->value = 0;
-	  dbg("radio_pack","Preparing the message... \n");
-	  
-	  call Acks.requestAck((message_t*)(mess));
- }        
+  am_addr_t sender_addr;
+  bool locked;
 
   //****************** Task send response *****************//
   void sendResp() {
@@ -73,51 +46,81 @@ module sendAckC {
   	 */
 	call Read.read();
   }
+  	
+  void sendReq()
+  /* This function is called when we want to send a request
+	 *
+	 * STEPS:
+	 * 1. Prepare the msg
+	 * 2. Set the ACK flag for the message using the PacketAcknowledgements interface
+	 *     (read the docs)
+	 * 3. Send an UNICAST message to the correct node
+	 * X. Use debug statements showing what's happening (i.e. message fields)
+	 */{
+
+        my_msg_t* message = (my_msg_t*)call Packet.getPayload(&packet, sizeof(my_msg_t));
+        if (message == NULL) {
+            return;
+        }
+        message->msg_type = REQ;
+        message->msg_counter = counter;
+        message->value = 0;
+
+        if(call Ack.requestAck(&packet)==SUCCESS) {
+            dbg("radio_ack", "Ack message is enabled. Sending message...\n");
+        } else {
+        	dbgerror("radio_ack", "Acks DISABLED\n");
+        }
+
+        if(call AMSend.send(2, &packet, sizeof(my_msg_t)) == SUCCESS) {
+            locked = TRUE;
+        }
+  }
+
 
   //***************** Boot interface ********************//
   event void Boot.booted() {
 	dbg("boot","Application booted.\n");
-	/* Fill it ... */
-    call SplitControl.start();
+	call SplitControl.start();
   }
 
   //***************** SplitControl interface ********************//
   event void SplitControl.startDone(error_t err){
-    /* Fill it ... */
     if(err == SUCCESS) {
-    	dbg("radio", "Radio on!\n");
-	if (TOS_NODE_ID > 0){
-        call MilliTimer.startPeriodic( 1000 );
-  	}
+        	dbg("radio", "Radio on!\n");
+        if(TOS_NODE_ID==1) {
+            call MilliTimer.startPeriodic(1000);
+        }
     }
-    else{
-	//dbg for error
-	call SplitControl.start();
+    else {
+        call SplitControl.start();
     }
   }
-  
+
   event void SplitControl.stopDone(error_t err){
     /* Fill it ... */
+    dbg("split-control", "Application stopped\n");
   }
 
   //***************** MilliTimer interface ********************//
   event void MilliTimer.fired() {
 	/* This event is triggered every time the timer fires.
 	 * When the timer fires, we send a request
-	 * Fill this part...
 	 */
-  	counter++;
   	dbg("timer","Timer fired at %s.", sim_time_string());
     dbg("timer", " Counter is %hu.\n", counter);
-	//call TempRead.read();
-
-  	sendReq();
+    if(locked) {
+        return;
+    }
+    else {
+		sendReq();
+    }
   }
-  
+
 
   //********************* AMSend interface ****************//
   event void AMSend.sendDone(message_t* buf,error_t err) {
-	/* This event is triggered when a message is sent 
+	/* This event is triggered when a message is sent
 	 *
 	 * STEPS:
 	 * 1. Check if the packet is sent
@@ -126,21 +129,23 @@ module sendAckC {
 	 * 2b. Otherwise, send again the request
 	 * X. Use debug statements showing what's happening (i.e. message fields)
 	 */
-  	if (&packet == buf && err == SUCCESS) {
-      dbg("radio_send", "Packet sent...");
-      dbg_clear("radio_send", " at time %s \n", sim_time_string());
-    }
-    else{
-      dbgerror("radio_send", "Send done error!\n");
-    }
-
-    if (call Acks.wasAcked(buf) == SUCCESS){
-		dbg("radio_send", "The program is done!\n");
-		call SplitControl.stop();
-
-    }else{
-    	dbgerror("radio_send", "No ACK received! Send a new request.\n");
-    	sendReq();
+    if(&packet == buf) {
+        my_msg_t* sent_msg = (my_msg_t*)buf;
+        dbg("radio_send", "Sent message with counter: %hu\n", counter);
+        locked = FALSE;
+        // check for acks
+        if(call Ack.wasAcked(buf) && TOS_NODE_ID==1) {
+            call MilliTimer.stop();
+            dbg("radio_ack", "Ack received.\n");
+        }
+        else if(call Ack.wasAcked(buf) && TOS_NODE_ID==2) {
+            dbg("radio_ack", "Ack received.\n");
+            call SplitControl.stop();
+        }
+        else {
+            dbg("radio_ack", "Ack not received\n");
+        }
+        counter++;
     }
   }
 
@@ -155,58 +160,53 @@ module sendAckC {
 	 * X. Use debug statements showing what's happening (i.e. message fields)
 	 */
 
-  	if (len != sizeof(my_msg_t)) {
-  		return buf;}
-    else {
-      my_msg_t* mess = (my_msg_t*)payload;
+    my_msg_t* message_received = (my_msg_t*)payload;
+    dbg("radio_rec", "Received message\n");
+    if(len != sizeof(my_msg_t)) return buf;
 
-      if (mess->msg_type == 1){
+    dbg("radio_rec", "Received message and got through:\n\tType: %hu, \n\tCounter: %hu, \n\tValue: %hu\n", message_received->msg_type, message_received->msg_counter, message_received->value);
 
-        	sendResp();    
-            dbg("radio_rec", "Received packet at time %s\n", sim_time_string());
-            dbg("radio_pack"," Payload length %hhu \n", call Packet.payloadLength( buf ));
-            dbg("radio_pack", ">>>Pack \n");
-            dbg_clear("radio_pack","\t\t Payload Received\n" );
-            dbg_clear("radio_pack", "\t\t type: %hhu \n ", mess->msg_type);
-      	  	dbg_clear("radio_pack", "\t\t counter: %hhu \n", mess->msg_counter);
-      	  	dbg_clear("radio_pack", "\t\t value: %hhu \n ", mess->value);
 
-      	}
-
-     
-      return buf;
+    if(TOS_NODE_ID==2) {
+    	// prepare packet to send back
+        counter = message_received->msg_counter;
+        sender_addr = call AMPacket.source(buf);
+        
+        //send back the response
+        sendResp();
     }
-    
 
-  }
-  
+}
+
   //************************* Read interface **********************//
   event void Read.readDone(error_t result, uint16_t data) {
-	/* This event is triggered when the fake sensor finish to read (after a Read.read()) 
-	 *
+	/* This event is triggered when the fake sensor finishes to read (after a Read.read()) *
 	 * STEPS:
 	 * 1. Prepare the response (RESP)
 	 * 2. Send back (with a unicast message) the response
 	 * X. Use debug statement showing what's happening (i.e. message fields)
 	 */
-  	my_msg_t* mess = (my_msg_t*)(call Packet.getPayload(&packet, sizeof(my_msg_t)));
-	  if (mess == NULL) {
-		return;
-	  }
-	  mess->msg_type = 2;
-	  mess->msg_counter = counter;
-	  mess->value = data;
-	  dbg("radio_pack","Preparing the message... \n");
-	  
-	  if(call AMSend.send(UNICAST_ADDRESS, &packet,sizeof(my_msg_t)) == SUCCESS){ //send to mote 1
- 	    dbg("radio_send", "Packet passed to lower layer successfully!\n");
-	    dbg("radio_pack",">>>Pack\n \t Payload length %hhu \n", call Packet.payloadLength( &packet ) );
-	    dbg_clear("radio_pack","\t\t Payload Received\n" );
-        dbg_clear("radio_pack", "\t\t type: %hhu \n ", mess->msg_type);
-      	dbg_clear("radio_pack", "\t\t counter: %hhu \n", mess->msg_counter);
-      	dbg_clear("radio_pack", "\t\t value: %hhu \n ", mess->value);
+    if(!locked && result == SUCCESS) {
 
-  	}
-}
+        my_msg_t* message = (my_msg_t*)call Packet.getPayload(&packet, sizeof(my_msg_t));
+
+        if (message == NULL) {
+            return;
+        }
+
+		// prepare packet to send
+        message->msg_type = RESP;
+        message->msg_counter = counter;
+        message->value = data;
+        if(call Ack.requestAck(&packet)==SUCCESS) {
+            dbg("radio_ack", "Acks enabled\n");
+        }
+        if(call AMSend.send(sender_addr, &packet, sizeof(my_msg_t)) == SUCCESS) {
+            locked = TRUE;
+        }
+
+    }
+
 }
 
+}

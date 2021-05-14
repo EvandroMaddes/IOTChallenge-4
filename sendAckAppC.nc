@@ -19,8 +19,9 @@ implementation {
   components new AMReceiverC(AM_MY_MSG);
   components new TimerMilliC() as timer;
   components ActiveMessageC;
+  components SerialStartC;
   components new FakeSensorC() as sensor;
-  components new CC2420PacketP() as acks; 
+
 
 /****** INTERFACES *****/
   //Boot interface
@@ -30,6 +31,7 @@ implementation {
   //Send and Receive interfaces
   App.AMSend -> AMSenderC;
   App.Packet -> AMSenderC;
+  App.AMPacket -> AMSenderC;
   App.Receive -> AMReceiverC;
   
   //Radio Control
@@ -45,7 +47,7 @@ implementation {
   App.Read -> sensor;
   
   //Packet acknowledgment
-  App.Acks -> acks;
+  App.Ack -> ActiveMessageC;
 	
 }
 

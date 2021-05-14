@@ -1,0 +1,35 @@
+DEBUG (1): Application booted.
+DEBUG (1): Radio on!
+DEBUG (1): Ack message is enabled. Sending message...
+DEBUG (1): Sent message with counter: 0
+DEBUG (1): Ack not received
+DEBUG (1): Ack message is enabled. Sending message...
+DEBUG (1): Sent message with counter: 1
+DEBUG (1): Ack not received
+DEBUG (1): Ack message is enabled. Sending message...
+DEBUG (1): Sent message with counter: 2
+DEBUG (1): Ack not received
+DEBUG (1): Ack message is enabled. Sending message...
+DEBUG (1): Sent message with counter: 3
+DEBUG (1): Ack not received
+DEBUG (1): Ack message is enabled. Sending message...
+DEBUG (1): Sent message with counter: 4
+DEBUG (1): Ack not received
+DEBUG (2): Application booted.
+DEBUG (2): Radio on!
+DEBUG (1): Ack message is enabled. Sending message...
+DEBUG (2): Received message
+DEBUG (2): Received message and got through:
+	Type: 1, 
+	Counter: 5, 
+	Value: 0
+DEBUG (1): Sent message with counter: 5
+DEBUG (1): Ack received.
+DEBUG (2): Acks enabled
+DEBUG (1): Received message
+DEBUG (1): Received message and got through:
+	Type: 2, 
+	Counter: 5, 
+	Value: 50421
+DEBUG (2): Sent message with counter: 5
+DEBUG (2): Ack received.

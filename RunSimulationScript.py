@@ -26,12 +26,12 @@ print "Initializing simulator....";
 t.init();
 
 
-#simulation_outfile = "simulation.txt";
-#print "Saving sensors simulation output to:", simulation_outfile;
-#simulation_out = open(simulation_outfile, "w");
+simulation_outfile = "sim_out.txt";
+print "Saving sensors simulation output to:", simulation_outfile;
 
-#out = open(simulation_outfile, "w");
-out = sys.stdout;
+
+out = open(simulation_outfile, "w");
+
 
 #Add debug channel
 print "Activate debug message on channel init"
@@ -50,7 +50,8 @@ print "Activate debug message on channel radio_pack"
 t.addChannel("radio_pack",out);
 print "Activate debug message on channel role"
 t.addChannel("role",out);
-
+print "Activate debug message on channel internal"
+t.addChannel("internal",out);
 
 print "Creating node 1...";
 node1 =t.getNode(1);
@@ -60,7 +61,9 @@ print ">>>Will boot at time",  time1/t.ticksPerSecond(), "[sec]";
 
 print "Creating node 2...";
 node2 = t.getNode(2);
-time2 = 1*t.ticksPerSecond();
+
+# Node 2 starts after 5 seconds 
+time2 = 5*t.ticksPerSecond();
 node2.bootAtTime(time2);
 print ">>>Will boot at time", time2/t.ticksPerSecond(), "[sec]";
 
@@ -108,4 +111,3 @@ for i in range(0,1200):
 	t.runNextEvent()
 	
 print "\n\n\nSimulation finished!";
-
