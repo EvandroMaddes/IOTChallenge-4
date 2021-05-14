@@ -20,7 +20,7 @@ implementation {
   components new TimerMilliC() as timer;
   components ActiveMessageC;
   components new FakeSensorC() as sensor;
-  components new CC2420PacketP as acks; 
+  components new CC2420PacketP() as acks; 
 
 /****** INTERFACES *****/
   //Boot interface
