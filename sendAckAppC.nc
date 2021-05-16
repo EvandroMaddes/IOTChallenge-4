@@ -31,14 +31,13 @@ implementation {
   //Send and Receive interfaces
   App.AMSend -> AMSenderC;
   App.Packet -> AMSenderC;
-  App.AMPacket -> AMSenderC;
   App.Receive -> AMReceiverC;
   
   //Radio Control
   App.SplitControl -> ActiveMessageC;
  
   //Interfaces to access package fields
-  
+    App.AMPacket -> AMSenderC;
   
   //Timer interface
   App.MilliTimer ->  timer;
