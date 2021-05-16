@@ -37,7 +37,7 @@ implementation {
   App.SplitControl -> ActiveMessageC;
  
   //Interfaces to access package fields
-    App.AMPacket -> AMSenderC;
+  App.AMPacket -> AMSenderC;
   
   //Timer interface
   App.MilliTimer ->  timer;
